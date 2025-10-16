@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "library-backend.js",
+  "type": "module",
   "scripts": {
+    "start": "node library-backend.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
