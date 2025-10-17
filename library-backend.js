@@ -118,6 +118,10 @@ const typeDefs = `
       published: Int!
       genres: [String!]!
     ): Book!
+    editBorn(
+      name: String!
+      born: Int!
+    ): Author!
   }
 `
 
@@ -154,6 +158,16 @@ const resolvers = {
       const book = { ...args, id: uuid() }
       books.push(book)
       return book
+    },
+    editBorn: (root, args) => {
+      const author = authors.find(a => a.name === args.name)
+       if (!author) {
+        return null;
+       }
+
+       const updatedAuthor = { ...author, born: args.born }
+       authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+       return updatedAuthor
     }
   }
 }
