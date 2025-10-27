@@ -1,7 +1,27 @@
 const { ApolloServer } = require('@apollo/server')
 const { startStandaloneServer } = require('@apollo/server/standalone')
-const { v4: uuid } = require('uuid')
+//const { v4: uuid } = require('uuid')
 const { GraphQLError } = require('graphql')
+
+mongoose = require('mongoose')
+require('dotenv').config()
+
+mongoose.set('strictQuery', false)
+
+const Book = require('./models/books')
+const Author = require('./models/authors')
+
+const MONGODB_URI = process.env.MONGODB_URI
+
+console.log('Connnecting to MongoDB...')
+
+mongoose.connect(MONGODB_URI)
+  .then(() => {
+    console.log('Connected to MongoDB!')
+  })
+  .catch((error) => {
+    console.error('error connection to MongoDB: ', error.message)
+  })
 
 let authors = [
   {
@@ -19,11 +39,11 @@ let authors = [
     id: "afa5b6f1-344d-11e9-a414-719c6709cf3e",
     born: 1821
   },
-  { 
+  {
     name: 'Joshua Kerievsky', // birthyear not known
     id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
   },
-  { 
+  {
     name: 'Sandi Metz', // birthyear not known
     id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
   },
@@ -63,7 +83,7 @@ let books = [
     author: 'Joshua Kerievsky',
     id: "afa5de01-344d-11e9-a414-719c6709cf3e",
     genres: ['refactoring', 'patterns']
-  },  
+  },
   {
     title: 'Practical Object-Oriented Design, An Agile Primer Using Ruby',
     published: 2012,
@@ -87,21 +107,20 @@ let books = [
   },
 ]
 
-/*
-  you can remove the placeholder query once your first one has been implemented 
-*/
-
 const typeDefs = `
   type Book {
     title: String!
-    author: String!
+    author: Author!
     published: Int!
     genres: [String!]!
+    id: ID!
   }
 
   type Author {
     name: String!
+    born: Int
     bookCount: Int!
+    id: ID!
   }
 
   type Query {
@@ -130,8 +149,8 @@ const resolvers = {
     bookCount: () => books.length,
     authorCount: () => authors.length,
     allBooks: (root, args) => {
-      let result = books
-      if (args.author){
+      let result = Book.find({})
+      if (args.author) {
         result = result.filter(book => book.author === args.author)
       }
       if (args.genre) {
@@ -161,13 +180,13 @@ const resolvers = {
     },
     editBorn: (root, args) => {
       const author = authors.find(a => a.name === args.name)
-       if (!author) {
+      if (!author) {
         return null;
-       }
+      }
 
-       const updatedAuthor = { ...author, born: args.born }
-       authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
-       return updatedAuthor
+      const updatedAuthor = { ...author, born: args.born }
+      authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+      return updatedAuthor
     }
   }
 }
@@ -177,8 +196,13 @@ const server = new ApolloServer({
   resolvers,
 })
 
+const PORT = process.env.PORT || 4000
+
 startStandaloneServer(server, {
-  listen: { port: 4000 },
+  listen: { port: PORT },
 }).then(({ url }) => {
   console.log(`Server ready at ${url}`)
+}).catch((err) => {
+  console.error('Error starting server: ', err)
+  process.exit(1)
 })
