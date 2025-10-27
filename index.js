@@ -1,6 +1,5 @@
 const { ApolloServer } = require('@apollo/server')
 const { startStandaloneServer } = require('@apollo/server/standalone')
-//const { v4: uuid } = require('uuid')
 const { GraphQLError } = require('graphql')
 
 mongoose = require('mongoose')
@@ -48,12 +47,6 @@ let authors = [
     id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
   },
 ]
-
-/*
- * Spanish:
- * Podría tener más sentido asociar un libro con su autor almacenando la id del autor en el contexto del libro en lugar del nombre del autor
- * Sin embargo, por simplicidad, almacenaremos el nombre del autor en conexión con el libro
-*/
 
 let books = [
   {
@@ -146,10 +139,10 @@ const typeDefs = `
 
 const resolvers = {
   Query: {
-    bookCount: () => books.length,
-    authorCount: () => authors.length,
+    bookCount: () => Book.collection.countDocuments(),
+    authorCount: () => Author.collection.countDocuments(),
     allBooks: (root, args) => {
-      let result = Book.find({})
+      let result = books
       if (args.author) {
         result = result.filter(book => book.author === args.author)
       }
@@ -158,14 +151,28 @@ const resolvers = {
       }
       return result
     },
-    allAuthors: () => authors.map(author => ({
-      ...author,
-      bookCount: books.filter(book => book.author === author.name).length
-    }))
+    allAuthors: async () => {
+      const authorsFromDb = await Author.find({})
+      const counts = await Book.aggregate([
+        { $group: { _id: "$author", count: { $sum: 1 } } }
+      ])
+      const countMap = counts.reduce((m, c) => { m[c._id] = c.count; return m }, {})
+      return authorsFromDb.map(a => ({
+        name: a.name,
+        born: a.born,
+        id: a._id.toString(),
+        bookCount: countMap[a.name] || 0
+      }))
+    }
+  },
+  Book: {
+    author: async (root) => {
+      return await Author.findOne({ name: root.author })
+    }
   },
   Mutation: {
-    addBook: (root, args) => {
-      if (books.find(book => book.title === args.title)) {
+    addBook: async (root, args) => {
+      if (await Book.find(b => b.title === args.title)) {
         throw new GraphQLError('Title must be unique', {
           extensions: {
             code: 'BAD_USER_INPUT',
@@ -173,20 +180,24 @@ const resolvers = {
           }
         })
       }
-
-      const book = { ...args, id: uuid() }
-      books.push(book)
-      return book
-    },
-    editBorn: (root, args) => {
-      const author = authors.find(a => a.name === args.name)
+      let author = await Author.findOne({ name: args.author })
       if (!author) {
-        return null;
+        author = new Author({ name: args.author })
+        await author.save()
       }
+      return await Book.insertOne({
+        title: args.title,
+        author: args.author,
+        published: args.published,
+        genres: args.genres
+      })
+    },
+    editBorn: async (root, args) => {
+      const author = await Author.findOne({ name: args.name })
+      if (!author) return null
 
-      const updatedAuthor = { ...author, born: args.born }
-      authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
-      return updatedAuthor
+      author.born = args.born
+      return await author.save()
     }
   }
 }
