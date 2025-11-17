@@ -219,7 +219,7 @@ startStandaloneServer(server, {
     const auth = req ? req.header.authorization : null
     if (auth && auth.startsWith('Bearer ')) {
       const decodedToken = jwt.verify(
-        req.substring(8), process.env.JWT_SECRET
+        auth.substring(8), process.env.JWT_SECRET
       )
       const currentUser = await User.findById(decodedToken.id)
       return { currentUser }
